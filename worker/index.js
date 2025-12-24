@@ -93,6 +93,8 @@ async function run() {
       content: cleanContent,
       is_processed: true,
       references: references
+    }, {
+      headers: { 'X-API-Key': process.env.API_SECRET }
     });
 
     console.log('🎉 SUCCESS! Article updated with Gemini.');
