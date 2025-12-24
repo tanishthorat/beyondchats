@@ -3,107 +3,82 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\DomCrawler\Crawler;
-
-// Note: install Goutte (wrapper) via: composer require weidner/goutte
-// Adjust the Client import if your package provides a different namespace.
+use App\Models\Article;
 
 class ScrapeOldestArticles extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'scrape:oldest';
-
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Scrape the oldest 5 articles from the last page and insert into DB';
+    protected $description = 'Scrape 5 oldest articles from BeyondChats';
 
     public function handle()
     {
-        $this->info('Starting scrape of oldest articles...');
+        // 1. Target the LAST page directly (Page 15 based on your debug file)
+        // This ensures we get the oldest articles.
+        $url = 'https://beyondchats.com/blogs/page/15/'; 
 
-        // Create a Goutte client. If you installed a different package, adjust accordingly.
-        $client = new \Goutte\Client();
+        $this->info("Fetching page: $url");
 
-        // LISTING URL: change this to the site you want to scrape
-        $listingUrl = 'https://example.com/articles';
+        $response = Http::withHeaders([
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ])->get($url);
 
-        // Fetch listing page
-        $crawler = $client->request('GET', $listingUrl);
-
-        // Find last page link (selector is a placeholder and must be adjusted)
-        try {
-            $lastLinkNode = $crawler->filter('.pagination a')->last();
-            $lastPageUrl = $lastLinkNode->link()->getUri();
-        } catch (\Exception $e) {
-            $this->warn('Could not find pagination last link; using listing URL.');
-            $lastPageUrl = $listingUrl;
+        if ($response->failed()) {
+            $this->error("Failed to fetch page.");
+            return;
         }
 
-        $this->info("Last page URL: {$lastPageUrl}");
+        $crawler = new Crawler($response->body());
 
-        // Fetch last page and collect article items (selector placeholders)
-        $lastPage = $client->request('GET', $lastPageUrl);
-
-        $items = $lastPage->filter('.article-item')->each(function (Crawler $node) {
-            $title = $node->filter('.title')->count() ? trim($node->filter('.title')->text()) : null;
-            $url = $node->filter('a')->count() ? $node->filter('a')->attr('href') : null;
-            return ['title' => $title, 'url' => $url];
+        // 2. Use the CORRECT class names from your HTML snippet
+        $articles = $crawler->filter('.entry-card')->each(function (Crawler $node) {
+            try {
+                return [
+                    'title' => $node->filter('.entry-title a')->text(),
+                    'link'  => $node->filter('.entry-title a')->attr('href'),
+                    'image' => $node->filter('.ct-media-container img')->count() ? $node->filter('.ct-media-container img')->attr('src') : null,
+                ];
+            } catch (\Exception $e) {
+                return null; // Skip if broken HTML
+            }
         });
 
-        if (empty($items)) {
-            $this->warn('No articles found on the last page with current selectors.');
-            return 1;
-        }
+        // Filter out nulls and take the last 5 (or all if less than 5)
+        $articles = array_filter($articles);
+        $oldestArticles = array_slice($articles, -5); 
 
-        // Grab the oldest 5 from the end of the list
-        $oldestFive = array_slice($items, -5);
+        $this->info("Found " . count($oldestArticles) . " articles. Processing...");
 
-        foreach ($oldestFive as $a) {
-            if (empty($a['url'])) continue;
+        foreach ($oldestArticles as $articleData) {
+            $this->info("Scraping content for: " . $articleData['title']);
 
-            try {
-                $detail = $client->request('GET', $a['url']);
+            // 3. Visit the individual article page to get the full text
+            $detailResponse = Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            ])->get($articleData['link']);
 
-                $content = $detail->filter('body')->count() ? $detail->filter('body')->html() : null;
-                $description = null;
-                try {
-                    $description = $detail->filter('meta[name="description"]')->attr('content');
-                } catch (\Exception $e) {}
-                $image = null;
-                try {
-                    $image = $detail->filter('meta[property="og:image"]')->attr('content');
-                } catch (\Exception $e) {}
+            if ($detailResponse->ok()) {
+                $detailCrawler = new Crawler($detailResponse->body());
+                
+                // Try standard Blocksy theme content class, fallback to body if missing
+                $content = $detailCrawler->filter('.entry-content')->count() > 0 
+                    ? $detailCrawler->filter('.entry-content')->html() 
+                    : "Content not found";
 
-                // Insert or update
-                DB::table('articles')->updateOrInsert(
-                    ['source_url' => $a['url']],
+                // 4. Save to Supabase
+                Article::updateOrCreate(
+                    ['source_url' => $articleData['link']],
                     [
-                        'title' => $a['title'] ?? 'Untitled',
-                        'description' => $description,
+                        'title' => $articleData['title'],
                         'content' => $content,
-                        'image_url' => $image,
-                        'is_processed' => false,
-                        'references' => null,
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'image_url' => $articleData['image'],
+                        'is_processed' => false
                     ]
                 );
-
-                $this->info('Saved: ' . ($a['title'] ?? $a['url']));
-            } catch (\Exception $e) {
-                $this->error('Error processing ' . $a['url'] . ': ' . $e->getMessage());
             }
         }
 
-        $this->info('Scrape complete.');
-        return 0;
+        $this->info("Phase 1 Complete! Data saved to Database.");
     }
 }
