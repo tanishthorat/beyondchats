@@ -1,0 +1,5 @@
+# Node + PHP vendor ignores
+node_modules/
+vendor/
+.env
+*.log
