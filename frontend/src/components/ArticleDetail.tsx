@@ -126,7 +126,7 @@ export default function ArticleDetail() {
   }
 
   return (
-    <article className="bg-neutral-800 text-white rounded-2xl shadow-lg p-6 md:p-8">
+    <article className="max-w-4xl mx-auto bg-neutral-800 text-white rounded-2xl shadow-lg p-4 md:p-8">
       {/* Header */}
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div className="flex-1">
@@ -160,11 +160,11 @@ export default function ArticleDetail() {
 
       {/* Featured Image */}
       {article.image_url && (
-        <figure className="my-6">
+        <figure className="my-4">
           <img
             src={article.image_url}
             alt={article.title}
-            className="w-full rounded-xl object-cover max-h-[500px]"
+            className="w-full rounded-xl object-cover max-h-[420px]"
             loading="eager"
           />
         </figure>
@@ -207,9 +207,10 @@ export default function ArticleDetail() {
       {/* Footer Actions */}
       <footer className="mt-8 pt-6 border-t border-neutral-700">
         <Button
-          color="secondary"
+          color="primary"
           onPress={handleBack}
-          size="lg"
+          size="md"
+          variant='faded'
           startContent={
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />

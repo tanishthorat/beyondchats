@@ -161,8 +161,9 @@ export default function ArticleCard({ article, onView }: ArticleCardProps) {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
+              color='primary'
               onPress={handleViewClick}
-              className="rounded-full! p-2 bg-purple-600 text-white"
+              className="rounded-full! p-2 text-white"
               aria-label={`View article: ${article.title}`}
             >
               View

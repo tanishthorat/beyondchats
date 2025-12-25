@@ -8,7 +8,7 @@ export default function ArticleList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 mx-32">
+      <div className="flex flex-col gap-4 px-4 sm:px-0">
         {loading ? (
           // Skeleton loader: show a few placeholder cards while loading
           Array.from({ length: 4 }).map((_, i) => ( 
