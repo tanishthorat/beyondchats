@@ -137,25 +137,24 @@ export default function ArticleDetail() {
             Last updated: {formattedDate}
           </time>
         </div>
-
-        {/* <div className="flex gap-2 shrink-0">
-          <Button 
-            onPress={handleEdit}
-            color="primary"
-            size="md"
-            aria-label="Edit article"
-          >
-            Edit
-          </Button>
-          <Button 
-            onPress={handleDelete}
-            color="danger"
-            size="md"
-            aria-label="Delete article"
-          >
-            Delete
-          </Button>
-        </div> */}
+        <div className="flex gap-2 shrink-0">
+          {article.source_url ? (
+            <Button
+              className='text-white/70'
+              variant="flat"
+              color='primary'
+              size="md"
+              onPress={() => window.open(article.source_url as string, '_blank')}
+              aria-label="Open original article"
+            >
+              View Original
+            </Button>
+          ) : (
+            <Button variant="ghost" size="md" disabled>
+              No Source
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* Featured Image */}
@@ -164,7 +163,7 @@ export default function ArticleDetail() {
           <img
             src={article.image_url}
             alt={article.title}
-            className="w-full rounded-xl object-cover max-h-[420px]"
+            className="w-full rounded-xl object-cover max-h-105"
             loading="eager"
           />
         </figure>
@@ -189,7 +188,7 @@ export default function ArticleDetail() {
           <ul className="space-y-2">
             {article.references.map((reference, index) => (
               <li key={`ref-${index}`} className="flex items-start gap-2">
-                <span className="text-neutral-500 flex-shrink-0">{index + 1}.</span>
+                <span className="text-neutral-500 shrink-0">{index + 1}.</span>
                 <a
                   href={reference.link}
                   target="_blank"
