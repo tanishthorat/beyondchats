@@ -19,11 +19,11 @@ export default function ArticleDetail() {
   }
 
   return (
-    <div className="bg-white rounded shadow p-6">
+    <div className="text-white rounded shadow p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{article.title}</h2>
-          <div className="text-sm text-gray-500">Updated: {article.updated_at || article.created_at}</div>
+          <div className="text-sm text-neutral-200">Updated: {article.updated_at || article.created_at}</div>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => editArticle(article)}>Edit</Button>

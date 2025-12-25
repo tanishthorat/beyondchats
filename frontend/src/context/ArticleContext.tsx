@@ -9,6 +9,7 @@ type ContextValue = {
   currentArticle: Article | null
   loading: boolean
   page: number
+  totalPages: number
   view: ViewState
   loadArticles: (page?: number) => Promise<void>
   viewArticle: (id: number) => Promise<void>
@@ -26,6 +27,7 @@ export function ArticleProvider({ children }: { children: React.ReactNode }) {
   const [currentArticle, setCurrentArticle] = useState<Article | null>(null)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
   const [view, setView] = useState<ViewState>({ view: 'list' })
 
   async function loadArticles(p = 1) {
@@ -34,6 +36,10 @@ export function ArticleProvider({ children }: { children: React.ReactNode }) {
       const res: any = await api.listArticles(p)
       const items = Array.isArray(res) ? res : res?.data || []
       setArticles(items)
+      // extract pagination total pages if available
+      const meta = res?.meta || res?.pagination || null
+      const lastPage = meta?.last_page ?? meta?.total_pages ?? (meta?.total && meta?.per_page ? Math.ceil(meta.total / meta.per_page) : undefined)
+      setTotalPages(lastPage ?? 1)
       setPage(p)
     } finally {
       setLoading(false)
@@ -117,6 +123,7 @@ export function ArticleProvider({ children }: { children: React.ReactNode }) {
     currentArticle,
     loading,
     page,
+    totalPages,
     view,
     loadArticles,
     viewArticle,
