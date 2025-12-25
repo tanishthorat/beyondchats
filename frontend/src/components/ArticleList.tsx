@@ -11,7 +11,7 @@ export default function ArticleList() {
       <div className="flex flex-col gap-4 mx-32">
         {loading ? (
           // Skeleton loader: show a few placeholder cards while loading
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 4 }).map((_, i) => ( 
             <div key={i} className="bg-neutral-800 rounded-2xl shadow-lg overflow-hidden flex flex-col sm:flex-row gap-4 p-4 animate-pulse">
               <Skeleton className="h-48 sm:h-32 sm:w-56 w-full bg-neutral-700 rounded-xl" />
 
