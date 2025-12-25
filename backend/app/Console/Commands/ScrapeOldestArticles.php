@@ -14,59 +14,147 @@ class ScrapeOldestArticles extends Command
 
     public function handle()
     {
-        // 1. Target the LAST page directly (Page 15 based on your debug file)
-        // This ensures we get the oldest articles.
-        $url = 'https://beyondchats.com/blogs/page/15/'; 
+        // 1. Start from the blogs index to find last page, then iterate backwards
+        $base = 'https://beyondchats.com/blogs/';
+        $this->info("Fetching blog index: $base");
 
-        $this->info("Fetching page: $url");
+        $indexResp = Http::withHeaders([
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        ])->get($base);
 
-        $response = Http::withHeaders([
-            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        ])->get($url);
-
-        if ($response->failed()) {
-            $this->error("Failed to fetch page.");
+        if ($indexResp->failed()) {
+            $this->error("Failed to fetch blog index.");
             return;
         }
 
-        $crawler = new Crawler($response->body());
+        $indexHtml = $indexResp->body();
+        $indexCrawler = new Crawler($indexHtml);
 
-        // 2. Use the CORRECT class names from your HTML snippet
-        $articles = $crawler->filter('.entry-card')->each(function (Crawler $node) {
-            try {
-                return [
-                    'title' => $node->filter('.entry-title a')->text(),
-                    'link'  => $node->filter('.entry-title a')->attr('href'),
-                    'image' => $node->filter('.ct-media-container img')->count() ? $node->filter('.ct-media-container img')->attr('src') : null,
-                ];
-            } catch (\Exception $e) {
-                return null; // Skip if broken HTML
+        // Try to extract last page number from pagination links
+        $lastPage = 0;
+        try {
+            // common pagination link patterns
+            $indexCrawler->filter('a')->each(function (Crawler $node) use (&$lastPage) {
+                $href = $node->attr('href') ?: '';
+                if (preg_match('#/page/(\d+)/#', $href, $m)) {
+                    $num = intval($m[1]);
+                    if ($num > $lastPage) $lastPage = $num;
+                }
+                // also page query param fallback
+                if (preg_match('#page=(\d+)#', $href, $m2)) {
+                    $num = intval($m2[1]);
+                    if ($num > $lastPage) $lastPage = $num;
+                }
+            });
+        } catch (\Exception $e) {
+            // ignore
+        }
+
+        // fallback if cannot detect
+        if ($lastPage === 0) {
+            $lastPage = 15; // previous fallback
+        }
+
+        $this->info("Detected last page: $lastPage");
+
+        // Collect up to 5 oldest articles by iterating from last page backwards
+        $collected = [];
+        $seen = [];
+        $page = $lastPage;
+
+        $articleSelectors = ['.entry-card', '.post-card', '.post', 'article', '.blog-post'];
+        $titleSelectors = ['.entry-title a', 'h2 a', 'h3 a', 'a'];
+
+        while (count($collected) < 5 && $page >= 1) {
+            $pageUrl = $page === 1 ? $base : rtrim($base, '/') . "/page/{$page}/";
+            $this->info("Fetching page: $pageUrl");
+            $resp = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])->get($pageUrl);
+            if ($resp->failed()) {
+                $this->warn("Failed to fetch page $page. Skipping.");
+                $page--;
+                continue;
             }
-        });
 
-        // Filter out nulls and take the last 5 (or all if less than 5)
-        $articles = array_filter($articles);
-        $oldestArticles = array_slice($articles, -5); 
+            $crawler = new Crawler($resp->body());
 
-        $this->info("Found " . count($oldestArticles) . " articles. Processing...");
+            $nodes = [];
+            foreach ($articleSelectors as $sel) {
+                if ($crawler->filter($sel)->count() > 0) {
+                    $nodes = $crawler->filter($sel)->each(function (Crawler $n) use ($titleSelectors) {
+                        $title = null;
+                        $link = null;
+                        $image = null;
+                        foreach ($titleSelectors as $ts) {
+                            if ($n->filter($ts)->count() > 0) {
+                                try {
+                                    $title = trim($n->filter($ts)->text());
+                                    $link = $n->filter($ts)->attr('href');
+                                    break;
+                                } catch (\Exception $e) {
+                                    // continue
+                                }
+                            }
+                        }
+                        // image fallback
+                        try {
+                            if ($n->filter('img')->count() > 0) {
+                                $image = $n->filter('img')->first()->attr('src');
+                            }
+                        } catch (\Exception $e) {
+                            $image = null;
+                        }
 
-        foreach ($oldestArticles as $articleData) {
+                        if ($title && $link) return ['title' => $title, 'link' => $link, 'image' => $image];
+                        return null;
+                    });
+                    // if we found something with this selector, don't try other selectors (to avoid duplicates)
+                    if (!empty($nodes)) break;
+                }
+            }
+
+            foreach ($nodes as $n) {
+                if (!$n) continue;
+                $href = $n['link'];
+                if (in_array($href, $seen)) continue;
+                $seen[] = $href;
+                $collected[] = $n;
+                if (count($collected) >= 5) break;
+            }
+
+            $page--;
+        }
+
+        $this->info("Found " . count($collected) . " articles. Processing...");
+
+        foreach ($collected as $articleData) {
             $this->info("Scraping content for: " . $articleData['title']);
 
-            // 3. Visit the individual article page to get the full text
             $detailResponse = Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
             ])->get($articleData['link']);
 
             if ($detailResponse->ok()) {
                 $detailCrawler = new Crawler($detailResponse->body());
-                
-                // Try standard Blocksy theme content class, fallback to body if missing
-                $content = $detailCrawler->filter('.entry-content')->count() > 0 
-                    ? $detailCrawler->filter('.entry-content')->html() 
-                    : "Content not found";
 
-                // 4. Save to Supabase
+                // Try multiple content selectors
+                $content = null;
+                $contentSelectors = ['.entry-content', '.post-content', '.content', 'article .content', '.article-content'];
+                foreach ($contentSelectors as $cs) {
+                    try {
+                        if ($detailCrawler->filter($cs)->count() > 0) {
+                            $content = $detailCrawler->filter($cs)->html();
+                            break;
+                        }
+                    } catch (\Exception $e) {
+                        // continue
+                    }
+                }
+
+                if (!$content) {
+                    // fallback: use body text
+                    $content = $detailCrawler->filter('body')->count() > 0 ? $detailCrawler->filter('body')->html() : 'Content not found';
+                }
+
                 Article::updateOrCreate(
                     ['source_url' => $articleData['link']],
                     [
