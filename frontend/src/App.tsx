@@ -12,7 +12,7 @@ function AppInner() {
       <div className="min-h-screen bg-neutral-900">
         <header className="fixed z-50 top-0 left-0 right-0 bg-neutral-900/80 backdrop-blur-sm">
           <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-            <h1 className="text-2xl flex gap-2 items-center text-white font-semibold"><Image className='h-8' src='https://beyondchats.com/wp-content/uploads/2023/12/Beyond_Chats_Logo-removebg-preview.png' /> <span>BeyondChats</span></h1>
+            <a href='/' className="text-2xl flex gap-2 text-white items-center text-white font-semibold"><Image className='h-8' src='https://beyondchats.com/wp-content/uploads/2023/12/Beyond_Chats_Logo-removebg-preview.png' /> <span className='text-white'>BeyondChats</span></a>
             <div className="flex gap-2">
 
               <Button onPress={() => { setView({ view: 'list' }); location.hash = '' }} color="primary">Back</Button>
