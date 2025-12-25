@@ -17,7 +17,7 @@ export default function CreateEditArticle() {
     setContent(currentArticle?.content || '')
   }, [currentArticle])
 
-  async function handleSubmit(e?: any) {
+  async function handleSubmit(e?: React.FormEvent<HTMLFormElement>) {
     e?.preventDefault()
     setSaving(true)
     try {
@@ -53,7 +53,7 @@ export default function CreateEditArticle() {
 
       <div className="flex gap-2">
         <Button type="submit" disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button>
-        <Button appearance="secondary" onClick={() => { setView({ view: 'list' }); location.hash = '' }}>Cancel</Button>
+        <Button color="secondary" onClick={() => { setView({ view: 'list' }); location.hash = '' }}>Cancel</Button>
       </div>
     </form>
   )

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import { useCallback } from 'react'
 import { Button, Image } from '@heroui/react'
 import { Share2Icon } from 'lucide-react'
 import type { Article } from '../types'
